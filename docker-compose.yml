@@ -1,6 +1,6 @@
 services:
   knx-server:
-    image: nginx:latest
+    image: devknx/knx-server:latest
     container_name: knx-server
     ports:
       - "10300:80"
@@ -10,7 +10,16 @@ services:
     networks:
       - knx-network
     restart: always
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
 
 networks:
   knx-network:
-    driver: bridge
+    external: true
