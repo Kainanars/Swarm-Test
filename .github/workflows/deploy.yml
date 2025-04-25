@@ -30,5 +30,6 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           password: ${{ secrets.SSH_PASSWORD }}
+          debug: true
           script: |
             docker service update --image ${{ secrets.DOCKER_USERNAME }}/knx-server:latest knx-server
