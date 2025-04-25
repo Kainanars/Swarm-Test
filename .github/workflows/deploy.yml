@@ -24,11 +24,11 @@ jobs:
         run: |
           docker push ${{ secrets.DOCKER_USERNAME }}/knx-server:latest
 
-      - name: Atualizar serviço no Swarm via SSH
+      - name: Atualizar serviço no Swarm via SSH com Senha
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SSH_PASSWORD }}
           script: |
             docker service update --image ${{ secrets.DOCKER_USERNAME }}/knx-server:latest knx-server
