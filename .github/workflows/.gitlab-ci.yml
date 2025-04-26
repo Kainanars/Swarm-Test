@@ -1,0 +1,46 @@
+stages:
+  - deploy
+
+variables:
+  IMAGE_NAME: devknx/knx-server
+  DOCKER_TAG: latest
+
+# Etapa de deploy
+deploy:
+  stage: deploy
+  image: docker:latest
+  services:
+    - docker:19.03.12-dind
+  before_script:
+    - docker info
+  script:
+    - echo "Puxando a imagem do Docker Hub..."
+    - docker pull $IMAGE_NAME:$DOCKER_TAG
+    - echo "Subindo nova versão (green)..."
+    - docker service create \
+        --name knx-server-green \
+        --replicas 2 \
+        --publish published=80,target=3000 \
+        $IMAGE_NAME:$DOCKER_TAG || true
+    - echo "Aguardando o serviço green iniciar..."
+    - sleep 15
+    - echo "Testando se o serviço green está funcionando..."
+    - GREEN_CONTAINER=$(docker ps --filter "name=knx-server-green" --format "{{.ID}}" | head -n 1)
+    - |
+      if [ -z "$GREEN_CONTAINER" ]; then
+        echo "Novo serviço não iniciou. Abortando!"
+        exit 1
+      fi
+    - GREEN_HEALTH=$(docker inspect --format='{{json .State.Health.Status}}' $GREEN_CONTAINER || echo "null")
+    - |
+      if [ "$GREEN_HEALTH" = "\"healthy\"" ] || [ "$GREEN_HEALTH" = "null" ]; then
+        echo "Novo serviço está funcionando!"
+      else
+        echo "Novo serviço com problemas. Abortando!"
+        exit 1
+      fi
+    - echo "Removendo serviço antigo (blue)..."
+    - docker service rm knx-server || true
+    - echo "Renomeando serviço green para knx-server..."
+    - docker service update --name knx-server knx-server-green
+    - echo "Deploy Blue-Green finalizado com sucesso!"
