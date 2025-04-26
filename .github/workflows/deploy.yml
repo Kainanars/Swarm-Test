@@ -24,7 +24,7 @@ jobs:
         run: |
           docker push ${{ secrets.DOCKER_USERNAME }}/knx-server:latest
 
-      - name: Atualizar serviço no Swarm via SSH com Senha
+      - name: Atualizar serviço com Blue-Green Deployment
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -32,4 +32,36 @@ jobs:
           password: ${{ secrets.SSH_PASSWORD }}
           debug: true
           script: |
-            docker service update --image ${{ secrets.DOCKER_USERNAME }}/knx-server:latest knx-server
+            echo "Subindo nova versão (green)..."
+            docker service create \
+              --name knx-server-green \
+              --replicas 2 \
+              --publish published=80,target=3000 \
+              ${{ secrets.DOCKER_USERNAME }}/knx-server:latest || true
+
+            echo "Aguardando o serviço green iniciar..."
+            sleep 15
+
+            echo "Testando se o green está funcionando..."
+            GREEN_CONTAINER=$(docker ps --filter "name=knx-server-green" --format "{{.ID}}" | head -n 1)
+
+            if [ -z "$GREEN_CONTAINER" ]; then
+              echo "Novo serviço não iniciou. Abortando!"
+              exit 1
+            fi
+
+            GREEN_HEALTH=$(docker inspect --format='{{json .State.Health.Status}}' $GREEN_CONTAINER || echo "null")
+            if [ "$GREEN_HEALTH" = "\"healthy\"" ] || [ "$GREEN_HEALTH" = "null" ]; then
+              echo "Novo serviço está funcionando!"
+            else
+              echo "Novo serviço com problemas. Abortando!"
+              exit 1
+            fi
+
+            echo "Removendo antigo (blue)..."
+            docker service rm knx-server || true
+
+            echo "Renomeando serviço green para knx-server..."
+            docker service update --name knx-server knx-server-green
+
+            echo "Deploy finalizado com sucesso!"
